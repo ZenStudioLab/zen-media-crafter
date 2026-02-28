@@ -2,7 +2,7 @@
 
 **Author:** Toan
 **Status:** Approved
-**Date:** 2026-02-27
+**Date:** 2026-02-28 (updated)
 
 ## Core Mission
 To provide an open-source, local-first tool that empowers users to craft high-quality media assets (memes, banners, ads, promos) using their own images and AI-driven layouts, while maintaining full control over privacy and customization.
@@ -10,9 +10,13 @@ To provide an open-source, local-first tool that empowers users to craft high-qu
 ## User Intent & Requirements
 
 ### 1. Multi-Format Generation
-- **Inputs**: User-provided images (single or multiple) and an optional color palette.
-- **Outputs**: Generate variety of formats including memes, banners, advertisements, and promotional images.
-- **Scalability**: For every input/request, the tool should generate **N** unique outputs (configurable, default is 10).
+- **Inputs**:
+  - User-provided background image (single photo — fixed across all variants)
+  - **Punchlines** (structured copy): headline, sub-headline, CTA, caption
+  - **Content type**: `meme`, `ad`, or `promo` — controls which copy slots are used
+  - **Pattern selection**: user picks 1+ visual templates; 1 variant is generated per pattern
+- **Outputs**: generate a variety of formats including memes, banners, advertisements, and promotional images.
+- **Scalability**: Number of variants = number of patterns selected (default: pick 6 preset patterns = 6 variants).
 
 ### 2. Privacy & Local Control
 - **Self-Hosted**: The tool is intended to run locally on the user's machine.
@@ -33,6 +37,8 @@ To provide an open-source, local-first tool that empowers users to craft high-qu
 - **Engine-Agnostic Format**: Use `DesignJSON` as a universal intermediate format for layout definitions.
 
 ## Success Criteria
-1. User can upload an image and receive 10 different banner/meme variations within seconds.
-2. User can "tweak" the text of a generated meme without re-generating the whole image.
-3. A developer can add a new LLM provider by simply implementing a TypeScript interface.
+1. User can upload an image, enter punchlines, and select 2 patterns to receive 2 distinct visual variants within seconds.
+2. **Template-mode generation works with zero API keys** (offline-capable, deterministic).
+3. User can "tweak" the text of a generated meme without re-generating the whole image.
+4. A developer can add a new LLM provider by simply implementing a TypeScript interface.
+5. A developer can add a new Pattern preset by adding an entry to `preset-patterns.ts` — no core changes required.

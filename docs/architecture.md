@@ -1,7 +1,7 @@
 # Zen Media Crafter: Architecture
 
 **Author:** Toan  
-**Last Updated:** 2026-02-27  
+**Last Updated:** 2026-02-28  
 **Skills Applied:** `architecture-patterns`, `design-patterns-implementation`, `architecture-decision-records`
 
 ---
@@ -41,7 +41,9 @@ The system is built on **Hexagonal Architecture (Ports & Adapters)** combined wi
 ┌─────────────────────────────────────────────────────────────┐
 │                         DOMAIN CORE                         │
 │   Entities: Project, Composition, DesignJSON, UserAsset     │
+│             Pattern, PunchlineSet                           │
 │   Use Cases: GenerateLayouts, TweakElement, ExportAsset     │
+│             MapPunchlinesToSlots                            │
 │   (Zero framework deps — pure TypeScript)                   │
 ├──────────────────┬──────────────────────────────────────────┤
 │  PRIMARY PORTS   │          SECONDARY PORTS                 │
@@ -66,11 +68,14 @@ The center of the hexagon. **No imports from React, Next.js, or any LLM SDK.**
 |---|---|
 | `Project` | Root aggregate. Owns a list of `Composition` objects. |
 | `Composition` | A single variant (meme/banner). Owns a `DesignJSON`. |
-| `DesignJSON` | Universal intermediate format describing canvas + elements. |
+| `DesignJSON` | Universal intermediate format describing canvas + elements + overlay. |
 | `UserAsset` | A user-uploaded image reference (ID + metadata). |
+| `Pattern` | Visual style template (overlay, text slots, typography). One variant generated per selected pattern. |
+| `PunchlineSet` | Structured copy input: headline, sub-headline, CTA, caption + content type. |
 
 Use Cases:
-- `GenerateLayouts` — calls `ILLMProvider`, produces N `Composition` objects
+- `GenerateLayouts` — maps `PunchlineSet` onto each selected `Pattern`'s text slots, optionally calls `ILLMProvider` for copy variation, produces 1 `Composition` per pattern
+- `MapPunchlinesToSlots` — pure function; distributes structured copy into pattern layout zones
 - `TweakElement` — mutates a single element in a `DesignJSON` without re-generating
 - `ExportAsset` — calls `IRenderingEngine` → `IExporter` to produce a downloadable file
 
@@ -129,18 +134,22 @@ sequenceDiagram
     participant LLM as ILLMProvider<br/>(e.g. OpenAIAdapter)
     participant Ren as IRenderingEngine<br/>(e.g. CanvasRenderer)
 
-    User->>UI: Upload image + choose style
-    UI->>UC: execute({ assets, prompt, n: 10 })
-    UC->>Reg: getLLM(selectedProvider)
-    Reg-->>UC: OpenAIAdapter
-    loop N times
-        UC->>LLM: generateDesign(prompt, assets)
-        LLM-->>UC: DesignJSON
+    User->>UI: Upload image + enter punchlines + select patterns
+    UI->>UC: execute({ backgroundImage, punchlines, patterns, provider, useLLMCopyVariation })
+    loop For each selected Pattern
+        UC->>UC: mapPunchlinesToSlots(punchlines, pattern)
+        alt useLLMCopyVariation = true
+            UC->>Reg: getLLM(selectedProvider)
+            Reg-->>UC: OpenAIAdapter
+            UC->>LLM: generate(enrichedPrompt)
+            LLM-->>UC: copy suggestions
+        end
+        UC->>UC: build DesignJSON (fixed bg + overlay + textElements)
         UC->>Ren: render(DesignJSON)
         Ren-->>UC: Blob (preview image)
     end
-    UC-->>UI: Composition[] (DesignJSON + preview)
-    UI-->>User: Gallery of N variants
+    UC-->>UI: Composition[] (1 per pattern)
+    UI-->>User: Gallery of N variants (same background, different patterns)
 ```
 
 ---
@@ -153,27 +162,31 @@ sequenceDiagram
 {
   "version": "1.0",
   "canvas": { "width": 1080, "height": 1080 },
-  "background": { "type": "solid|gradient|image", "value": "#1a1a2e" },
+  "background": { "type": "image", "src": "user-asset-id" },
+  "overlay": { "type": "solid", "value": "#0d1117", "opacity": 0.7 },
   "elements": [
+    {
+      "id": "uuid-v4",
+      "type": "image",
+      "src": "user-asset-id",
+      "transform": { "scale": 1.0, "rotation": 0, "opacity": 1.0 },
+      "position": { "x": 0, "y": 0 },
+      "layer": 1
+    },
     {
       "id": "uuid-v4",
       "type": "text",
       "content": "Summer Sale",
-      "style": { "fontSize": 48, "color": "#ffffff", "fontFamily": "Inter" },
-      "position": { "x": 100, "y": 200 },
-      "layer": 2
-    },
-    {
-      "id": "uuid-v4",
-      "type": "image",
-      "src": "asset-id-reference",
-      "transform": { "scale": 1.2, "rotation": 0, "opacity": 1.0 },
-      "position": { "x": 0, "y": 0 },
-      "layer": 1
+      "style": { "fontSize": 64, "color": "#ffffff", "fontFamily": "Inter", "fontWeight": "extrabold" },
+      "position": { "x": 80, "y": 200, "zone": "top-left" },
+      "layer": 3
     }
   ]
 }
 ```
+
+> **Layer convention:** `1` = background image, `2` = reserved for overlay, `3+` = text/accent elements.
+> **`overlay`** is a new optional field added in v1.0 non-breaking extension — see [ADR-0002](adr/0002-design-json-schema.md).
 
 ---
 
@@ -198,12 +211,24 @@ interface RootState {
     selectedRenderer: string;
     sidebarOpen: boolean;
   };
+  patterns: {
+    availablePatterns: Pattern[];     // built-in + user-created
+    selectedPatternIds: string[];      // drives variant count (1 per pattern)
+    customPatterns: Pattern[];         // user-defined, persisted to localStorage
+  };
+  generationInput: {
+    backgroundImageId: string | null;  // fixed across all variants
+    punchlines: PunchlineSet;          // headline, subheadline, CTA, caption + contentType
+    useLLMCopyVariation: boolean;      // false = template-only (offline); true = LLM-assisted
+  };
   history: {
     past: Project[];
     future: Project[];
   };
 }
 ```
+
+> The `patterns` and `generationInput` slices are the primary input surface. `project.compositions` holds the generated output.
 
 ---
 

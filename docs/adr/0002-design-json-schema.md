@@ -102,13 +102,21 @@ export const BackgroundSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('image'), assetId: z.string() }),
 ]);
 
+export const OverlaySchema = z.object({
+  type: z.enum(['solid', 'gradient', 'texture']),
+  value: z.string(),
+  opacity: z.number().min(0).max(1),
+});
+
 export const DesignJSONSchema = z.object({
   version: z.literal('1.0'),
   canvas: z.object({ width: z.number(), height: z.number() }),
   background: BackgroundSchema,
+  overlay: OverlaySchema.optional(), // [v1.0 extension] Pattern overlay on top of background image
   elements: z.array(ElementSchema),
 });
 
+export type OverlayTreatment = z.infer<typeof OverlaySchema>;
 export type DesignJSON = z.infer<typeof DesignJSONSchema>;
 ```
 
@@ -116,7 +124,7 @@ export type DesignJSON = z.infer<typeof DesignJSONSchema>;
 
 ## Validation Strategy
 
-Zod validation occurs at **the port boundary** — inside `GenerateLayouts` use case, immediately after the `ILLMProvider` returns a result:
+Zod validation occurs at **the port boundary** — inside `GenerateLayouts` use case, immediately after the `ILLMProvider` returns a result, OR after template-mode DesignJSON construction:
 
 ```typescript
 const raw = await llmProvider.generateDesign(prompt, assets);
@@ -126,7 +134,12 @@ if (!validated.success) {
 }
 ```
 
-Renderers receive a **typed, validated `DesignJSON`** — no additional validation needed inside adapters.
+In **template mode** (Pattern-based generation without LLM), the `DesignJSON` is constructed programmatically and validated immediately after construction. Renderers receive a **typed, validated `DesignJSON`** — no additional validation needed inside adapters.
+
+> **Layer convention (introduced with Pattern system):**
+> - `layer: 1` — background image (always the user's `UserAsset`)
+> - `layer: 2` — reserved for `overlay` rendering (from Pattern's `BackgroundTreatment`)
+> - `layer: 3+` — text and accent elements (from Pattern's `TextSlot[]`)
 
 ---
 
@@ -161,3 +174,4 @@ Renderers receive a **typed, validated `DesignJSON`** — no additional validati
 
 - [ADR-0001](0001-hexagonal-strategy.md) — Establishes the port contract this schema serves
 - [ADR-0003](0003-tdd-approach.md) — Zod schema is unit-tested in Domain Core
+- [ADR-0004](0004-pattern-visual-template.md) — Pattern system that introduced the `overlay` field and layer convention

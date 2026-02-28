@@ -13,6 +13,7 @@ This directory contains Architecture Decision Records (ADRs) for **Zen Media Cra
 | [0001](0001-hexagonal-strategy.md) | Hexagonal Architecture with Strategy Pattern | Accepted | 2026-02-27 |
 | [0002](0002-design-json-schema.md) | DesignJSON as Universal Intermediate Format | Accepted | 2026-02-27 |
 | [0003](0003-tdd-approach.md) | Test-Driven Development as First-Class Practice | Accepted | 2026-02-27 |
+| [0004](0004-pattern-visual-template.md) | Pattern as Visual Template (Not Prompt String) | Accepted | 2026-02-28 |
 
 ---
 
