@@ -4,13 +4,18 @@ import { GenerateLayouts } from '@/core/use-cases/generate-layouts';
 import { OpenAIAdapter } from '@/adapters/llm/openai-adapter';
 import { AnthropicAdapter } from '@/adapters/llm/anthropic-adapter';
 import { GeminiAdapter } from '@/adapters/llm/gemini-adapter';
+import { PunchlineSetSchema } from '@/core/entities/punchline-set';
+import { PatternSchema } from '@/core/entities/pattern';
+import { UserAssetSchema } from '@/core/entities/user-asset';
+import { ILLMProvider } from '@/ports/i-llm-provider';
 
 // Payload Validation Schema
 const GeneratePayloadSchema = z.object({
-    prompt: z.string().min(3, "Prompt must be at least 3 characters long"),
-    count: z.number().int().min(1).max(10),
-    providerName: z.enum(['openai', 'anthropic', 'gemini']),
-    startIndex: z.number().int().min(0).optional().default(0),
+    backgroundImage: UserAssetSchema,
+    punchlines: PunchlineSetSchema,
+    patterns: z.array(PatternSchema).min(1),
+    providerName: z.enum(['openai', 'anthropic', 'gemini']).optional(),
+    useLLMCopyVariation: z.boolean().default(false),
 });
 
 export async function POST(request: Request) {
@@ -18,38 +23,42 @@ export async function POST(request: Request) {
         const body = await request.json();
         const payload = GeneratePayloadSchema.parse(body);
 
-        const apiKey = request.headers.get('x-api-key');
-        if (!apiKey) {
-            return NextResponse.json({ error: 'API Key is required in x-api-key header' }, { status: 401 });
+        let providerAdapter: ILLMProvider | null = null;
+
+        // Only instantiate adapter and check API key if we actually need LLM variation
+        if (payload.useLLMCopyVariation && payload.providerName) {
+            const apiKey = request.headers.get('x-api-key');
+            if (!apiKey) {
+                return NextResponse.json({ error: 'API Key is required in x-api-key header for LLM variation mode' }, { status: 401 });
+            }
+
+            switch (payload.providerName) {
+                case 'openai':
+                    providerAdapter = new OpenAIAdapter(apiKey);
+                    break;
+                case 'anthropic':
+                    providerAdapter = new AnthropicAdapter(apiKey);
+                    break;
+                case 'gemini':
+                    providerAdapter = new GeminiAdapter(apiKey);
+                    break;
+                default:
+                    return NextResponse.json({ error: 'Unsupported provider' }, { status: 400 });
+            }
         }
 
-        // Instantiate the specific adapter locally for this stateless request
-        let providerAdapter;
-        switch (payload.providerName) {
-            case 'openai':
-                providerAdapter = new OpenAIAdapter(apiKey);
-                break;
-            case 'anthropic':
-                providerAdapter = new AnthropicAdapter(apiKey);
-                break;
-            case 'gemini':
-                providerAdapter = new GeminiAdapter(apiKey);
-                break;
-            default:
-                return NextResponse.json({ error: 'Unsupported provider' }, { status: 400 });
-        }
+        const compositions = await GenerateLayouts.execute({
+            backgroundImage: payload.backgroundImage,
+            punchlines: payload.punchlines,
+            patterns: payload.patterns,
+            provider: providerAdapter || { id: 'none', generateCopyVariations: async () => ({}) },
+            useLLMCopyVariation: payload.useLLMCopyVariation,
+        });
 
-        const compositions = await GenerateLayouts.execute(
-            payload.prompt,
-            payload.count,
-            providerAdapter,
-            payload.providerName,
-            payload.startIndex
-        );
-
+        console.log("Compositions generated successfully", compositions.length);
         return NextResponse.json({ compositions });
-
-    } catch (error: any) {
+    } catch (error: unknown) {
+        console.log("Caught Error in POST:", error);
         if (error instanceof z.ZodError) {
             return NextResponse.json({ error: 'Validation failed', details: error.flatten().fieldErrors }, { status: 400 });
         }

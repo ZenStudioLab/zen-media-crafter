@@ -7,20 +7,16 @@ vi.mock('ai', () => ({
 }));
 
 describe('GeminiAdapter', () => {
-    it('calls generateObject with the exact schema and returns DesignJSON', async () => {
-        const mockDesign = {
-            version: '1.0',
-            canvas: { width: 1080, height: 1080 },
-            elements: [],
-        };
+    it('calls generateObject and returns CopyVariations', async () => {
+        const mockVariations = { headline: 'Gemini Flash Deal', subheadline: 'Limited Time Only' };
 
         // @ts-expect-error Mocking the generateObject function for testing
-        aiModule.generateObject.mockResolvedValue({ object: mockDesign });
+        aiModule.generateObject.mockResolvedValue({ object: mockVariations });
 
         const adapter = new GeminiAdapter('fake-api-key');
-        const result = await adapter.generate('test prompt');
+        const result = await adapter.generateCopyVariations('test prompt');
 
-        expect(result).toEqual(mockDesign);
+        expect(result).toEqual(mockVariations);
         expect(aiModule.generateObject).toHaveBeenCalled();
     });
 });

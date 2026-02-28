@@ -16,6 +16,7 @@ describe('Project Entity', () => {
         const design: DesignJSON = {
             version: '1.0',
             canvas: { width: 800, height: 600 },
+            background: { type: 'solid', value: '#ffffff' },
             elements: []
         };
         const comp = new Composition('Variant A', design, 'openai');

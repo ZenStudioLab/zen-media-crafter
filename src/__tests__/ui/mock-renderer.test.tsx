@@ -11,14 +11,15 @@ describe('MockRenderer', () => {
     const mockDesign: DesignJSON = {
         version: '1.0',
         canvas: { width: 1080, height: 1080 },
+        background: { type: 'solid', value: '#000000' },
         elements: [
             {
                 id: 'text-1',
                 type: 'text',
                 content: 'Hello World',
+                layer: 3,
+                position: { x: 100, y: 200 },
                 style: {
-                    x: 100,
-                    y: 200,
                     fontSize: 48,
                     color: '#ffffff',
                     fontFamily: 'Arial',
@@ -48,7 +49,7 @@ describe('MockRenderer', () => {
             fontSize: '24px',
             color: 'rgb(255, 255, 255)',  // JSDOM converts Hex to rgb
             fontFamily: 'Arial',
-            zIndex: '1',
+            zIndex: '5', // layer 3 + 2
         });
     });
 });

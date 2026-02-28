@@ -1,38 +1,37 @@
+import { z } from 'zod';
 import { generateObject } from 'ai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
-import { ILLMProvider } from '@/ports/i-llm-provider';
-import { DesignJSON, DesignJSONSchema } from '@/core/entities/design-json';
+import { ILLMProvider, CopyVariations } from '@/ports/i-llm-provider';
+import { UserAsset } from '@/core/entities/user-asset';
+
+const CopyVariationsSchema = z.object({
+    headline: z.string().optional().describe('Improved headline copy'),
+    subheadline: z.string().optional().describe('Improved sub-headline copy'),
+    cta: z.string().optional().describe('Improved call-to-action copy'),
+    caption: z.string().optional().describe('Improved caption copy'),
+});
 
 export class GeminiAdapter implements ILLMProvider {
+    public readonly id = 'gemini';
     private google;
 
     constructor(apiKey: string) {
-        this.google = createGoogleGenerativeAI({
-            apiKey,
-        });
+        this.google = createGoogleGenerativeAI({ apiKey });
     }
 
-    public async generate(prompt: string, baseDesign?: DesignJSON): Promise<DesignJSON> {
-        const systemPrompt = `You are an expert graphic designer. You must output a JSON layout composition based on the user's prompt.`;
-
-        const messages = [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: prompt }
-        ];
-
-        if (baseDesign) {
-            messages.push({
-                role: 'user',
-                content: `Base Design: ${JSON.stringify(baseDesign)}`
-            });
-        }
+    public async generateCopyVariations(prompt: string, assets?: UserAsset[]): Promise<CopyVariations> {
+        const assetContext = assets?.length
+            ? `\n\nBackground Asset ID for reference: ${assets[0].id}`
+            : '';
 
         const { object } = await generateObject({
             model: this.google('gemini-2.5-flash'),
-            schema: DesignJSONSchema,
-            prompt: messages.map(m => m.content).join('\n'),
+            schema: CopyVariationsSchema,
+            prompt: `${prompt}${assetContext}`,
         });
 
-        return object as DesignJSON;
+        return Object.fromEntries(
+            Object.entries(object).filter(([, v]) => v !== undefined)
+        ) as CopyVariations;
     }
 }

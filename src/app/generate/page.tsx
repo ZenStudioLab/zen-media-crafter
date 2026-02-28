@@ -1,62 +1,91 @@
-'use client';
+"use client";
 
 import React, { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { RootState } from '@/store';
 import { setActiveProject, addCompositionToActive } from '@/store/project-slice';
 import { setIsGenerating, setSelectedProvider } from '@/store/ui-slice';
+import { updatePunchlines, setBackgroundImageId, setUseLLMCopyVariation } from '@/store/generation-input-slice';
+import { setPresets } from '@/store/patterns-slice';
+import { presetPatterns } from '@/store/preset-patterns';
 import { Project } from '@/core/entities/project';
+import { UserAsset } from '@/core/entities/user-asset';
+import { Composition } from '@/core/entities/composition';
 import { MockRenderer } from '@/components/mock-renderer';
+import { PatternSelector } from '@/components/pattern-selector';
 import {
     Box, Drawer, Toolbar, Typography, TextField,
     Button, MenuItem, Select, FormControl, InputLabel,
-    Grid, CircularProgress, Alert
+    Grid, CircularProgress, Alert, Switch, FormControlLabel, Divider, SelectChangeEvent
 } from '@mui/material';
 
-const drawerWidth = 320;
+const drawerWidth = 360;
+
+// Temporary mock asset for the active "upload"
+const mockUploadedAsset: UserAsset = {
+    id: 'asset-hero-1',
+    name: 'Hero Image',
+    blobUrl: 'https://images.unsplash.com/photo-1542831371-29b0f74f9713?q=80&w=1080&auto=format&fit=crop',
+    width: 1080,
+    height: 1080,
+};
 
 export default function GeneratePage() {
     const dispatch = useDispatch();
     const { activeProject } = useSelector((state: RootState) => state.project);
     const { isGenerating, selectedProvider } = useSelector((state: RootState) => state.ui);
+    const { punchlines, backgroundImageId, useLLMCopyVariation } = useSelector((state: RootState) => state.generationInput);
+    const { selectedPatternIds, availablePatterns } = useSelector((state: RootState) => state.patterns);
     const apiKeys = useSelector((state: RootState) => state.apiKeys);
 
-    const [prompt, setPrompt] = useState('A sleek modern promotional banner for a summer sale');
-    const [count, setCount] = useState(4);
     const [error, setError] = useState<string | null>(null);
 
-    // Initialize an active project if not present
+    // Initialize store with preset template library & select a default project/image
     useEffect(() => {
+        dispatch(setPresets(presetPatterns));
         if (!activeProject) {
-            dispatch(setActiveProject(new Project('Untitled Generator Project')));
+            dispatch(setActiveProject(new Project('Campaign: Summer Launch')));
         }
-    }, [activeProject, dispatch]);
+        if (!backgroundImageId) {
+            dispatch(setBackgroundImageId(mockUploadedAsset.id));
+        }
+    }, [activeProject, backgroundImageId, dispatch]);
 
     const handleGenerate = async () => {
         setError(null);
+        if (!backgroundImageId) {
+            setError("Please select a background image first.");
+            return;
+        }
+        if (selectedPatternIds.length === 0) {
+            setError("Please select at least one visual pattern.");
+            return;
+        }
 
-        // Ensure provider has an API key configured
+        // Only validate API key if we are running in LLM copy variation mode
         const apiKey = apiKeys[selectedProvider as keyof typeof apiKeys];
-        if (!apiKey) {
-            setError(`Please configure your ${selectedProvider.toUpperCase()} API Key first using the Gear icon.`);
+        if (useLLMCopyVariation && !apiKey) {
+            setError(`Please configure your ${selectedProvider.toUpperCase()} API Key first using the Gear icon for copy variations.`);
             return;
         }
 
         dispatch(setIsGenerating(true));
 
         try {
-            const startIndex = activeProject?.compositions.length || 0;
+            const selectedPatterns = availablePatterns.filter(p => selectedPatternIds.includes(p.id));
+
             const res = await fetch('/api/generate', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'x-api-key': apiKey,
+                    ...(useLLMCopyVariation && apiKey ? { 'x-api-key': apiKey } : {})
                 },
                 body: JSON.stringify({
-                    prompt,
-                    count,
-                    providerName: selectedProvider,
-                    startIndex
+                    backgroundImage: mockUploadedAsset,
+                    punchlines,
+                    patterns: selectedPatterns,
+                    providerName: useLLMCopyVariation ? selectedProvider : undefined,
+                    useLLMCopyVariation
                 }),
             });
 
@@ -66,16 +95,17 @@ export default function GeneratePage() {
             }
 
             const data = await res.json();
-
-            // Map the parsed JSON back into Compositions
-            // Assuming Next.js /api returned serialized JSON Compositions.
-            data.compositions.forEach((comp: any) => {
+            data.compositions.forEach((comp: Composition) => {
                 dispatch(addCompositionToActive(comp));
             });
 
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error(err);
-            setError(err.message);
+            if (err instanceof Error) {
+                setError(err.message);
+            } else {
+                setError(String(err));
+            }
         } finally {
             dispatch(setIsGenerating(false));
         }
@@ -83,7 +113,6 @@ export default function GeneratePage() {
 
     return (
         <Box sx={{ display: 'flex' }}>
-            {/* Sidebar */}
             <Drawer
                 variant="permanent"
                 sx={{
@@ -92,53 +121,102 @@ export default function GeneratePage() {
                     [`& .MuiDrawer-paper`]: { width: drawerWidth, boxSizing: 'border-box', p: 3 },
                 }}
             >
-                <Toolbar /> {/* Spacer for top app bar if any */}
-                <Typography variant="h6" gutterBottom>
-                    Controls
-                </Typography>
+                <Toolbar />
+                <Typography variant="h6" gutterBottom>Generation Settings</Typography>
 
-                <Box component="form" sx={{ display: 'flex', flexDirection: 'column', gap: 3, mt: 2 }}>
-                    <TextField
-                        label="Prompt"
-                        multiline
-                        rows={4}
-                        value={prompt}
-                        onChange={(e) => setPrompt(e.target.value)}
-                        disabled={isGenerating}
-                        fullWidth
-                    />
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, mt: 1 }}>
+                    {/* 1. Content Input */}
+                    <Box>
+                        <Typography variant="subtitle2" color="primary" sx={{ mb: 1.5, fontWeight: 'bold' }}>1. Content</Typography>
+                        <FormControl fullWidth size="small" sx={{ mb: 2 }}>
+                            <InputLabel>Content Type</InputLabel>
+                            <Select
+                                value={punchlines.contentType}
+                                label="Content Type"
+                                onChange={(e: SelectChangeEvent<string>) => dispatch(updatePunchlines({ contentType: e.target.value as 'ad' | 'promo' | 'meme' }))}
+                            >
+                                <MenuItem value="ad">Advertisement</MenuItem>
+                                <MenuItem value="promo">Social Promo</MenuItem>
+                                <MenuItem value="meme">Meme</MenuItem>
+                            </Select>
+                        </FormControl>
 
-                    <TextField
-                        label="Variants Count"
-                        type="number"
-                        value={count}
-                        onChange={(e) => setCount(Number(e.target.value))}
-                        inputProps={{ min: 1, max: 10 }}
-                        disabled={isGenerating}
-                        fullWidth
-                    />
+                        <TextField
+                            label="Headline" size="small" fullWidth sx={{ mb: 1.5 }}
+                            value={punchlines.headline}
+                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => dispatch(updatePunchlines({ headline: e.target.value }))}
+                        />
+                        {punchlines.contentType !== 'meme' && (
+                            <TextField
+                                label="Sub-headline" size="small" fullWidth sx={{ mb: 1.5 }}
+                                value={punchlines.subheadline || ''}
+                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => dispatch(updatePunchlines({ subheadline: e.target.value }))}
+                            />
+                        )}
+                        {punchlines.contentType !== 'meme' && (
+                            <TextField
+                                label="Call to Action (CTA)" size="small" fullWidth sx={{ mb: 1.5 }}
+                                value={punchlines.cta || ''}
+                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => dispatch(updatePunchlines({ cta: e.target.value }))}
+                            />
+                        )}
+                        {(punchlines.contentType === 'meme' || punchlines.contentType === 'promo') && (
+                            <TextField
+                                label="Caption (Bottom text)" size="small" fullWidth sx={{ mb: 1.5 }}
+                                value={punchlines.caption || ''}
+                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => dispatch(updatePunchlines({ caption: e.target.value }))}
+                            />
+                        )}
+                    </Box>
 
-                    <FormControl fullWidth disabled={isGenerating}>
-                        <InputLabel>Logic Provider</InputLabel>
-                        <Select
-                            value={selectedProvider}
-                            label="Logic Provider"
-                            onChange={(e) => dispatch(setSelectedProvider(e.target.value as any))}
-                        >
-                            <MenuItem value="openai">OpenAI (GPT-4o)</MenuItem>
-                            <MenuItem value="anthropic">Anthropic (Claude)</MenuItem>
-                            <MenuItem value="gemini">Google (Gemini Pro)</MenuItem>
-                        </Select>
-                    </FormControl>
+                    <Divider />
+
+                    {/* 2. Visual Templates */}
+                    <Box className="w-full">
+                        <Typography variant="subtitle2" color="primary" sx={{ mb: 1.5, fontWeight: 'bold' }}>2. Visual Style</Typography>
+                        <PatternSelector />
+                    </Box>
+
+                    <Divider />
+
+                    {/* 3. AI Copilot (Optional) */}
+                    <Box>
+                        <Typography variant="subtitle2" color="primary" sx={{ mb: 0.5, fontWeight: 'bold' }}>3. AI Copilot</Typography>
+                        <FormControlLabel
+                            control={
+                                <Switch
+                                    checked={useLLMCopyVariation}
+                                    onChange={(e) => dispatch(setUseLLMCopyVariation(e.target.checked))}
+                                />
+                            }
+                            label={<Typography variant="body2">Suggest Copy Variations</Typography>}
+                        />
+
+                        {useLLMCopyVariation && (
+                            <FormControl fullWidth size="small" sx={{ mt: 1.5 }}>
+                                <InputLabel>AI Provider</InputLabel>
+                                <Select
+                                    value={selectedProvider}
+                                    label="AI Provider"
+                                    onChange={(e: SelectChangeEvent<string>) => dispatch(setSelectedProvider(e.target.value as 'openai' | 'anthropic' | 'gemini'))}
+                                >
+                                    <MenuItem value="openai">OpenAI (GPT-4o)</MenuItem>
+                                    <MenuItem value="anthropic">Anthropic (Claude)</MenuItem>
+                                    <MenuItem value="gemini">Google (Gemini Pro)</MenuItem>
+                                </Select>
+                            </FormControl>
+                        )}
+                    </Box>
 
                     <Button
                         variant="contained"
                         color="primary"
                         size="large"
                         onClick={handleGenerate}
-                        disabled={isGenerating || !prompt.trim()}
+                        disabled={isGenerating || !punchlines.headline.trim() || selectedPatternIds.length === 0}
+                        sx={{ mt: 1, py: 1.5 }}
                     >
-                        {isGenerating ? <CircularProgress size={24} color="inherit" /> : 'Generate Layouts'}
+                        {isGenerating ? <CircularProgress size={24} color="inherit" /> : `Generate ${selectedPatternIds.length} Variants`}
                     </Button>
 
                     {error && <Alert severity="error">{error}</Alert>}
@@ -170,7 +248,7 @@ export default function GeneratePage() {
                             {/* Render using the mock renderer */}
                             {/* Calculate an appropriate scale factor for thumbnails, assuming canvas might be 1080 */}
                             <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, overflow: 'hidden', display: 'inline-block' }}>
-                                <MockRenderer design={comp.design} scale={0.25} />
+                                <MockRenderer design={comp.designJson} scale={0.25} />
                             </Box>
                         </Grid>
                     ))}

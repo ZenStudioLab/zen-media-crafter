@@ -11,17 +11,18 @@ test.describe('Generate Dashboard', () => {
                         name: 'Variant 1',
                         generatedBy: 'openai',
                         createdAt: new Date().toISOString(),
-                        design: {
+                        designJson: {
                             version: '1.0',
                             canvas: { width: 1080, height: 1080 },
+                            background: { type: 'solid', value: '#fff' },
                             elements: [
                                 {
                                     id: 'text-1',
                                     type: 'text',
                                     content: 'MOCK GENERATED TEXT',
+                                    position: { x: 500, y: 500 },
+                                    layer: 3,
                                     style: {
-                                        x: 200,
-                                        y: 200,
                                         fontSize: 64,
                                         color: '#ffffff',
                                     }
@@ -35,33 +36,45 @@ test.describe('Generate Dashboard', () => {
         });
     });
 
-    test('successfully generates a layout and displays it in the gallery', async ({ page }) => {
-        // 1. Navigate to the generate page
+    test('PatternSelector allows toggling patterns and updates generation button', async ({ page }) => {
         await page.goto('/generate');
 
-        // 2. Set API key in the UI config
-        // Click the API config button (aria-label "settings")
+        // Verify the selector header
+        await expect(page.getByText('Visual Patterns')).toBeVisible();
+
+        // Ensure there are patterns to click
+        const patterns = page.locator('h4');
+        await expect(patterns.first()).toBeVisible();
+
+        // Verify default button state says "Generate 0 Variants" because none are selected, OR if default is 1, let's verify.
+        // Actually, the new UI initialized store with pre-selected preset patterns, and the button says "Generate X Variants".
+        const generateBtn = page.getByRole('button', { name: /Generate.*Variants?/i });
+        await expect(generateBtn).toBeVisible();
+        const btnText = await generateBtn.textContent();
+        expect(btnText).toMatch(/Generate \d+ Variant/);
+    });
+
+    test('successfully generates a layout via mock API and displays it in the gallery', async ({ page }) => {
+        await page.goto('/generate');
+
+        // 1. Fill Content Inputs
+        const headlineInput = page.getByLabel('Headline', { exact: true });
+        await headlineInput.fill('A cool promo for my startup');
+
+        // 2. Select AI Copilot
+        await page.getByLabel('Suggest Copy Variations').check();
+
+        // 3. Set API key in the UI config (required if using LLM)
         await page.getByRole('button', { name: 'settings' }).click();
-
-        // Fill the OpenAI key input
-        // Since Material UI might transform labels or it's just 'OpenAI API Key', we will match by exact placeholder bounds or just generic 'API Key' label
         await page.getByLabel(/OpenAI API Key/i).fill('mock-e2e-api-key-123');
-
-        // Close the dialog
         await page.getByRole('button', { name: /save keys/i }).click();
 
-        // 3. Interact with the Dashboard controls
-        const promptInput = page.getByLabel(/prompt/i);
-        await promptInput.fill('A cool promo for my startup');
-
-        const generateBtn = page.getByRole('button', { name: /generate layouts/i });
+        // 4. Generate
+        const generateBtn = page.getByRole('button', { name: /Generate.*Variants?/i });
         await generateBtn.click();
 
-        // 4. Verify Gallery renders the MockRenderer response
-        const mockTextElement = page.getByText('MOCK GENERATED TEXT');
-        await expect(mockTextElement).toBeVisible();
-
-        // Verify variant title exists
+        // 5. Verify Gallery renders the MockRenderer response or Variant list
+        await expect(page.getByText('MOCK GENERATED TEXT')).toBeVisible();
         await expect(page.getByText('Variant 1')).toBeVisible();
     });
 });

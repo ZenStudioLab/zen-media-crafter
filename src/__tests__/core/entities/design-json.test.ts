@@ -4,44 +4,35 @@ import { DesignJSONSchema } from '@/core/entities/design-json';
 describe('DesignJSONSchema', () => {
     it('validates a correct DesignJSON object', () => {
         const validData = {
-            version: '1.0.0',
+            version: '1.0',
             canvas: {
                 width: 1920,
                 height: 1080,
             },
+            background: { type: 'solid', value: '#ffffff' },
             elements: [
                 {
                     id: 'element-1',
                     type: 'text',
                     content: 'Hello World',
-                    src: null,
-                    shapeType: null,
+                    layer: 1,
+                    position: { x: 100, y: 100 },
                     style: {
-                        x: 100,
-                        y: 100,
-                        width: null,
-                        height: null,
                         fontSize: 24,
                         fontFamily: 'Arial',
                         color: '#000000',
-                        backgroundColor: null,
                     },
                 },
                 {
                     id: 'element-2',
                     type: 'image',
-                    content: null,
                     src: 'https://example.com/image.png',
-                    shapeType: null,
-                    style: {
-                        x: 200,
-                        y: 200,
-                        width: 500,
-                        height: 500,
-                        fontSize: null,
-                        fontFamily: null,
-                        color: null,
-                        backgroundColor: null,
+                    layer: 2,
+                    position: { x: 200, y: 200 },
+                    transform: {
+                        scale: 1,
+                        rotation: 0,
+                        opacity: 1,
                     },
                 },
             ],

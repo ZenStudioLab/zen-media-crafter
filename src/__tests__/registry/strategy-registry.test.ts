@@ -15,7 +15,8 @@ describe('StrategyRegistry', () => {
 
     it('registers and retrieves an LLM provider', () => {
         const mockProvider: ILLMProvider = {
-            generate: async () => ({ version: '1.0', canvas: { width: 100, height: 100 }, elements: [] }),
+            id: 'mock',
+            generateCopyVariations: async () => ({ headline: 'Test' }),
         };
 
         const registry = StrategyRegistry.getInstance();
