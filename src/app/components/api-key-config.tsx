@@ -18,9 +18,13 @@ export function ApiKeyConfig() {
     const dispatch = useDispatch();
     const apiKeys = useSelector((state: RootState) => state.apiKeys);
     const [localOpenAI, setLocalOpenAI] = useState(apiKeys.openai);
+    const [localAnthropic, setLocalAnthropic] = useState(apiKeys.anthropic);
+    const [localGemini, setLocalGemini] = useState(apiKeys.gemini);
 
     const handleSave = () => {
         dispatch(setApiKey({ provider: 'openai', key: localOpenAI }));
+        dispatch(setApiKey({ provider: 'anthropic', key: localAnthropic }));
+        dispatch(setApiKey({ provider: 'gemini', key: localGemini }));
         setOpen(false);
     };
 
@@ -49,6 +53,24 @@ export function ApiKeyConfig() {
                         margin="normal"
                         value={localOpenAI}
                         onChange={(e) => setLocalOpenAI(e.target.value)}
+                    />
+                    <TextField
+                        fullWidth
+                        label="Anthropic API Key"
+                        variant="outlined"
+                        type="password"
+                        margin="normal"
+                        value={localAnthropic}
+                        onChange={(e) => setLocalAnthropic(e.target.value)}
+                    />
+                    <TextField
+                        fullWidth
+                        label="Gemini API Key"
+                        variant="outlined"
+                        type="password"
+                        margin="normal"
+                        value={localGemini}
+                        onChange={(e) => setLocalGemini(e.target.value)}
                     />
 
                     <Button

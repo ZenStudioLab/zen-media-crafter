@@ -13,9 +13,10 @@ test('API Key Configuration UI saves to Redux', async ({ page }) => {
     const drawerHeading = page.locator('text=API Configuration');
     await expect(drawerHeading).toBeVisible();
 
-    // Type an API key
-    const apiKeyInput = page.locator('input[type="password"]');
-    await apiKeyInput.fill('sk-test-12345');
+    // Type API keys
+    await page.getByLabel('OpenAI API Key').fill('sk-test-12345');
+    await page.getByLabel('Anthropic API Key').fill('ant-test-67890');
+    await page.getByLabel('Gemini API Key').fill('gem-test-11121');
 
     // Save keys
     const saveButton = page.locator('button:has-text("Save Keys")');

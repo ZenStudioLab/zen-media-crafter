@@ -1,12 +1,12 @@
 import { describe, it, expect, vi } from 'vitest';
-import { OpenAIAdapter } from '@/adapters/llm/openai-adapter';
+import { AnthropicAdapter } from '@/adapters/llm/anthropic-adapter';
 import * as aiModule from 'ai';
 
 vi.mock('ai', () => ({
     generateObject: vi.fn(),
 }));
 
-describe('OpenAIAdapter', () => {
+describe('AnthropicAdapter', () => {
     it('calls generateObject with the exact schema and returns DesignJSON', async () => {
         const mockDesign = {
             version: '1.0',
@@ -17,7 +17,7 @@ describe('OpenAIAdapter', () => {
         // @ts-expect-error Mocking the generateObject function for testing
         aiModule.generateObject.mockResolvedValue({ object: mockDesign });
 
-        const adapter = new OpenAIAdapter('fake-api-key');
+        const adapter = new AnthropicAdapter('fake-api-key');
         const result = await adapter.generate('test prompt');
 
         expect(result).toEqual(mockDesign);

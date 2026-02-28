@@ -3,7 +3,7 @@ import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 interface UiState {
     theme: 'light' | 'dark';
     sidebarOpen: boolean;
-    selectedProvider: 'openai' | 'gemini' | 'ollama';
+    selectedProvider: 'openai' | 'gemini' | 'anthropic' | 'ollama';
     isGenerating: boolean;
     selectedVariantId: string | null;
 }
