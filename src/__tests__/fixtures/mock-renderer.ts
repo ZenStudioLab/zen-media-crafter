@@ -1,5 +1,4 @@
 import { IRenderingEngine } from '@/ports/i-rendering-engine';
-import { DesignJSON } from '@/core/entities/design-json';
 import { vi } from 'vitest';
 
 export class MockRenderer implements IRenderingEngine {

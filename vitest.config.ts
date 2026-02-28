@@ -14,6 +14,7 @@ export default defineConfig({
             },
             include: ['src/core/**', 'src/registry/**'],
         },
+        exclude: ['**/node_modules/**', '**/dist/**', 'tests/e2e/**'],
     },
     resolve: {
         alias: {
