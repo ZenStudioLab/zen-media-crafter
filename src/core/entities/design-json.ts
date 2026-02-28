@@ -3,39 +3,22 @@ import { z } from 'zod';
 export const ElementStyleSchema = z.object({
     x: z.number(),
     y: z.number(),
-    width: z.number().optional(),
-    height: z.number().optional(),
-    fontSize: z.number().optional(),
-    fontFamily: z.string().optional(),
-    color: z.string().optional(),
-    backgroundColor: z.string().optional(),
+    width: z.number().nullable(),
+    height: z.number().nullable(),
+    fontSize: z.number().nullable(),
+    fontFamily: z.string().nullable(),
+    color: z.string().nullable(),
+    backgroundColor: z.string().nullable(),
 });
 
-export const BaseElementSchema = z.object({
+export const CanvasElementSchema = z.object({
     id: z.string(),
+    type: z.enum(['text', 'image', 'shape']),
     style: ElementStyleSchema,
+    content: z.string().nullable(),
+    src: z.string().nullable(),
+    shapeType: z.enum(['rectangle', 'circle', 'triangle']).nullable(),
 });
-
-export const TextElementSchema = BaseElementSchema.extend({
-    type: z.literal('text'),
-    content: z.string(),
-});
-
-export const ImageElementSchema = BaseElementSchema.extend({
-    type: z.literal('image'),
-    src: z.string(),
-});
-
-export const ShapeElementSchema = BaseElementSchema.extend({
-    type: z.literal('shape'),
-    shapeType: z.enum(['rectangle', 'circle', 'triangle']),
-});
-
-export const CanvasElementSchema = z.discriminatedUnion('type', [
-    TextElementSchema,
-    ImageElementSchema,
-    ShapeElementSchema,
-]);
 
 export const CanvasDimensionsSchema = z.object({
     width: z.number().positive(),
